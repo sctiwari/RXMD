@@ -20,6 +20,7 @@ CALL GETPARAMS(FFPath,FFPath_lg,FFDescript)
 CALL INITSYSTEM(atype, pos, v, f, q)
 
 if(mdmode==10) call ConjugateGradient(atype,pos)
+if(mdmode==53) call nhc_init()
 
 call QEq(atype, pos, q)
 call FORCE(atype, pos, f, q)
@@ -45,6 +46,7 @@ do nstep=0, ntime_step-1
    endif
 
    if (mdmode==52) call berendsen(atype, v)   
+   if (mdmode==53) call nhc(atype, v)   
 
    if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
       call INITVELOCITY(atype, v)
