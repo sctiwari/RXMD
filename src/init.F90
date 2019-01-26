@@ -22,6 +22,12 @@ Interface
       real(8),allocatable,dimension(:) :: atype,q
       real(8),allocatable,dimension(:,:) :: pos,v,f
    end subroutine
+
+   subroutine ReadMoS2(atype, pos, v, q, f, fileName)
+      character(*),intent(in) :: fileName
+      real(8),allocatable,dimension(:) :: atype,q
+      real(8),allocatable,dimension(:,:) :: pos,v,f
+   end subroutine
 end interface
 
 !--- read FF file, output dir, MD parameter file paths from command line
@@ -62,7 +68,6 @@ read(1,*) isQEq, NMAXQEq, QEq_tol, qstep
 read(1,*) Lex_fqs, Lex_k
 read(1,*) isBinary, isBondFile, isPDB
 read(1,*) ftol
-read(1,*) isLG
 close(1)
 
 !--- an error trap
@@ -276,9 +281,13 @@ if(myid==0) then
    lata/nbcc(1)/vprocs(1),latb/nbcc(2)/vprocs(2),latc/nbcc(3)/vprocs(3)
    write(6,'(a30,2i6)') "MAXNEIGHBS, MAXNEIGHBS10:", MAXNEIGHBS,MAXNEIGHBS10
    write(6,'(a30,i6,i9)') "NMINCELL, NBUFFER:", NMINCELL, NBUFFER
-   write(6,'(a30,3(a12,1x))') "FFPath, DataDir, ParmPath:", &
+   if (isLG) then 
+        write(6,'(a30,3(a12,1x))') "FFPath, DataDir, ParmPath:", &
+                          trim(FFPath_lg), trim(DataDir), trim(ParmPath)
+      else
+        write(6,'(a30,3(a12,1x))') "FFPath, DataDir, ParmPath:", &
                           trim(FFPath), trim(DataDir), trim(ParmPath)
-
+   endif
    print'(a30 $)','# of atoms per type:'
    do ity=1, nso
       if(natoms_per_type(ity)>0) print'(i12,a2,i2 $)',natoms_per_type(ity),' -',ity
@@ -301,7 +310,7 @@ use parameters; use atoms
 implicit none
 
 real(8) :: atype(NBUFFER)
-real(8) :: v(3,NBUFFER)
+real(8) :: v(NBUFFER,3)
 
 integer :: i, k, ity
 real(8) :: vv(2), vsqr, vsl, rndm(2)

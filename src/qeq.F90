@@ -235,6 +235,7 @@ do c3=0, nbcc(3)-1
                drtb = drtb*UDRi
 
                inxn = inxn2(ity, jty)
+               if (inxn==0) cycle 
 
                hessian(nbplist(i,0),i) = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
             endif

@@ -14,7 +14,7 @@ call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
 if(myid==0)  print'(a30)', 'rxmd has started'
 
 !--- read ffield file
-CALL GETPARAMS(FFPath,FFDescript)
+CALL GETPARAMS(FFPath,FFPath_lg,FFDescript)
 
 !--- initialize the MD system
 CALL INITSYSTEM(atype, pos, v, f, q)
@@ -43,6 +43,8 @@ do nstep=0, ntime_step-1
       ctmp = (treq*UTEMP0)/( GKE*UTEMP )
       v(1:NATOMS,1:3)=sqrt(ctmp)*v(1:NATOMS,1:3)
    endif
+
+   if (mdmode==52) call berendsen(atype, v)   
 
    if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
       call INITVELOCITY(atype, v)
@@ -635,7 +637,7 @@ subroutine ScaleTemperature(atype, v)
 use atoms; use parameters
 !-----------------------------------------------------------------------
 implicit none
-real(8) :: atype(NBUFFER), v(3,NBUFFER)
+real(8) :: atype(NBUFFER), v(NBUFFER,3)
 
 integer :: i,ity
 real(8) :: Ekinetic, ctmp

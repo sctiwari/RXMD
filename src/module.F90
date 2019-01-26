@@ -24,7 +24,7 @@ include 'mpif.h'
 logical :: isFF=.false., isData=.false., isMDparm=.false.
 integer,parameter :: MAXPATHLENGTH=256
 character(MAXPATHLENGTH) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
-
+character(MAXPATHLENGTH) :: FFPath_lg="ffield_lg"
 logical :: saveRunProfile=.false.
 character(MAXPATHLENGTH) :: RunProfilePath="profile.dat"
 integer,parameter :: RunProfileFD=30 ! file descriptor for summary file
@@ -98,9 +98,9 @@ real(8) :: cutoff_vpar30
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
-integer :: NBUFFER=30000
-integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-integer,parameter :: MAXNEIGHBS10=700 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
+integer :: NBUFFER=300000
+integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+integer,parameter :: MAXNEIGHBS10=1000 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
 integer,parameter :: NMINCELL=3  !<NMINCELL>: Nr of minimum linkedlist cell <-> minimum grain size.
 real(8),parameter :: MAXANGLE= 0.999999999999d0 
@@ -423,7 +423,7 @@ end module parameters
 module MemoryAllocator
 !-------------------------------------------------------------------------------------------
 implicit none
-integer :: totalMemory=0
+integer(8) :: totalMemory=0
 
 contains 
 
@@ -583,7 +583,7 @@ subroutine DeallocatorI3D(array)
   return
 end subroutine 
 
-integer function GetTotalMemory() 
+integer(8) function GetTotalMemory() 
   GetTotalMemory = totalMemory
   return
 end function

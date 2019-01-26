@@ -56,7 +56,7 @@ do i=1, copyptr(6)
      if(j<i) then
         jty  = nint(atype(j))
         inxn = inxn2(ity, jty)
-
+        if (inxn ==0 ) cycle 
         i1 = nbrindx(i,j1)
 
         dr(1:3) = pos(i,1:3) - pos(j,1:3)
@@ -148,7 +148,7 @@ real(8) :: exppboc1i,exppboc2i,exppboc1j,exppboc2j   !<kn>
 !$omp do
 do i=1, copyptr(6)
    ity = nint(atype(i))
-   deltap(i,2) = deltap(i,1) + Val(ity) - Valboc(ity)
+   deltap(i,2) = deltap(i,1) + Val(ity) - Valval(ity) ! update for Mo
 enddo
 !$omp end do
 
@@ -173,7 +173,7 @@ do i=1, copyptr(6)
         i1=nbrindx(i,j1)
 
         inxn = inxn2(ity,jty)
-
+        if (inxn==0) cycle 
         fn2 = exppboc1i + exppboc1j                                   !<kn>
         fn3 = ( -1.d0/vpar2 )*log( 0.5d0*(exppboc2i + exppboc2j) )    !<kn>
 
