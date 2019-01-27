@@ -9,12 +9,11 @@ real(8) :: qomega, gnkt, gkt
 real(8),allocatable :: qmass(:), wdti(:)
 real(8),allocatable :: xlogs(:), vlogs(:), glogs(:)
 real(8), allocatable :: wdti2(:), wdti4(:), wdti8(:)
-real(8) :: tomega=100.d0
 end module 
 
 !-----------------------------------------------------------------------
 subroutine nhc_init()
-use nhc_setup; use atoms; use parameters
+use nhc_setup; use atoms; use parameters; use nvt_setup
 !-----------------------------------------------------------------------
 implicit none 
 
@@ -22,62 +21,69 @@ integer:: i, j, nn
 integer:: iyosh, dseed
 real:: wdti_1, vsqr, fscale
 
-allocate (xlogs(nnosmax), vlogs(nnosmax), glogs(nnosmax))
-allocate (qmass(nnosmax))
-allocate (wdti(nyoshmax), wdti2(nyoshmax), wdti4(nyoshmax), wdti8(nyoshmax))
+allocate (xlogs(0:nnosmax), vlogs(0:nnosmax), glogs(0:nnosmax))
+allocate (qmass(0:nnosmax))
 
-nresn= 3; nyosh= 3; nnos= 3
+nresn= 1; nyosh= 3; nnos= 3
 
-  qomega = UTIME/tomega
-  gnkt = 2.0*GNATOMS * treq/UTEMP
-  gkt = 2.0*treq/UTEMP 
-  qmass(1) = gnkt / qomega**2
-  do i = 2, nnos 
-    qmass(i) = qmass(1)/ dble(GNATOMS)
+  qomega = 1/tomega
+  gnkt = 3.0*GNATOMS * treq
+  gkt = treq
+  qmass(0) = gnkt / qomega**2
+  do i = 1, nnos-1 
+    qmass(i) = qmass(0)/ (3.0*dble(GNATOMS))
   enddo
 
 !-----set parameters for Yoshida-Suzuki Integration
 
-  wdti_1 = dt/float(nresn)
-  if(nyosh.eq.1) then
-    wdti(1) = wdti_1
-  elseif(nyosh.eq.3) then
-    wdti(1) = (1d0/(2d0-2d0**(1d0/3d0)))*wdti_1
-    wdti(2) = 1d0-2d0*wdti(1)
-    wdti(3) = wdti(1)
-  elseif(nyosh.eq.5) then
-    wdti(1) = (1d0/(4d0-4d0**(1d0/3d0)))*wdti_1
-    wdti(2) = wdti(1)
-    wdti(3) = 1d0-4d0*wdti(1)
-    wdti(4) = wdti(1)
-    wdti(5) = wdti(1)
-  else
-    print*,'unsupported nyosh selected--now quitting'
-    stop
-  endif
+! wdti_1 = dt/float(nresn)
+! if(nyosh.eq.1) then
+!   wdti(1) = wdti_1
+! elseif(nyosh.eq.3) then
+!   wdti(1) = (1d0/(2d0-2d0**(1d0/3d0)))*wdti_1
+!   wdti(2) = 1d0-2d0*wdti(1)
+!   wdti(3) = wdti(1)
+! elseif(nyosh.eq.5) then
+!   wdti(1) = (1d0/(4d0-4d0**(1d0/3d0)))*wdti_1
+!   wdti(2) = wdti(1)
+!   wdti(3) = 1d0-4d0*wdti(1)
+!   wdti(4) = wdti(1)
+!   wdti(5) = wdti(1)
+! else
+!   print*,'unsupported nyosh selected--now quitting'
+!   stop
+! endif
 
-  do iyosh = 1, nyosh
-      wdti2(iyosh)=0.5d0*wdti(iyosh)
-      wdti4(iyosh)=0.5d0*wdti2(iyosh)
-      wdti8(iyosh)=0.5d0*wdti4(iyosh)
-  enddo 
+! do iyosh = 1, nyosh
+!     wdti2(iyosh)=0.5d0*wdti(iyosh)
+!     wdti4(iyosh)=0.5d0*wdti2(iyosh)
+!     wdti8(iyosh)=0.5d0*wdti4(iyosh)
+! enddo 
 
-      do i=1,nnos
-        xlogs(i)=0d0
-        vlogs(i)=0d0
-        glogs(i)=0d0
-      enddo
-      dseed=23219d0
-      vsqr=0d0
-      do i=1,nnos
-        call myrnd(vlogs(i),dseed)
-        vsqr=vsqr+qmass(i)*vlogs(i)*vlogs(i)
-        !!if (myid==0) print *, "printing KE fictional mass", vsqr
-      enddo
-      fscale=dsqrt(3d0*nnos*gkt/vsqr)
-      do i=1,nnos
-        vlogs(i)=vlogs(i)*fscale
-      enddo
+     do i=0,nnos-1
+       xlogs(i)=0d0
+       vlogs(i)=0d0
+!       glogs(i)=0d0
+     enddo
+        vlogs(nnos)=0d0
+
+
+ do i = 1, nnos-1 
+    glogs(i)= (qmass(i-1) * vlogs(i-1)*vlogs(i-1) - treq)/ qmass(i)
+ enddo 
+
+!if (myid==0) print *, glogs(1:2)
+!     dseed=23219
+!     vsqr=0d0
+!     do i=1,nnos
+!       call myrnd(vlogs(i),dseed)
+!       vsqr=vsqr+qmass(i)*vlogs(i)*vlogs(i)
+!       !!if (myid==0) print *, "printing KE fictional mass", vsqr
+!     enddo
+!     fscale=dsqrt(3d0*nnos*gkt/vsqr)
+!     do i=1,nnos
+!       vlogs(i)=vlogs(i)*fscale
+!     enddo
 
 end subroutine nhc_init
 
@@ -90,54 +96,74 @@ integer:: i, j, ii
 integer:: nnos1, iresn, iyosh, inos
 real(8) :: scale, Ekinetic, eGKE, eKE2
 real(8) :: atype(NBUFFER), v(NBUFFER,3)
-real(8)  :: aanhc
+real(8)  :: aanhc, ncfac, t_current, factor_eta
+real(8) :: dt8, dt4, dt2
+
+dt2= 0.5*dt*UTIME
+dt4= 0.5*dt2
+dt8= 0.5*dt4
 
   nnos1= nnos+1 
   scale = 1d0
 
 ! calculate kinetic energy
+if (qmass(1) >0) then 
   Ekinetic= eGKE(atype, v)
+  t_current= Ekinetic*UTEMP/GNATOMS
   eKE2= 2.d0* Ekinetic
-  glogs(1) = (eKE2 - gnkt)/ qmass(1) 
-  
-  do i = 1, nnos-1
-    glogs(i+1) = (qmass(i) * vlogs(i) * vlogs(i) - gkt)/ qmass(i+1)
-  enddo 
+  glogs(0) = (eKE2 - gnkt)/ qmass(0) 
+  else 
+    glogs(0) = 0.0 
+endif 
 
-!if (myid==0) print *, gnkt, eKE2, qmass(1:3), glogs(1:3), vlogs(1:3)
-
-  do iresn = 1, nresn
-
-    do iyosh= 1, nyosh
-
-!---------First half update of the thermostat velocities
-        vlogs(nnos)=vlogs(nnos)+glogs(nnos)*wdti4(iyosh)
-          do inos=1,nnos-1
-            aanhc=dexp(-wdti8(iyosh)*vlogs(nnos1-inos))
-            vlogs(nnos-inos)=( vlogs(nnos-inos)*aanhc + wdti4(iyosh)*glogs(nnos-inos) )*aanhc
-          enddo
+!if (myid==0) print '(f12.7)', glogs(1), qmass(2)
 
 
-!---------Update the atom-velocity scaling factor
-          aanhc=dexp(-wdti2(iyosh)*vlogs(1))
-          scale=scale*aanhc
+ncfac= 1.0/nresn
 
-!---------Update the thermostat positions
-          do inos=1,nnos
-            xlogs(inos)=xlogs(inos)+vlogs(inos)*wdti2(iyosh)
-          enddo
+ do iresn = 0, nresn-1
 
-!---------Second half update of the thermostat velocities
-          glogs(1)=(scale*scale*eKE2 - gnkt)/qmass(1)
-          do inos=1,nnos-1
-            aanhc=dexp(-wdti8(iyosh)*vlogs(inos+1))
-            vlogs(inos)= ( vlogs(inos)*aanhc  + wdti4(iyosh)*glogs(inos) )*aanhc
-            glogs(inos+1)=(qmass(inos)*vlogs(inos)*vlogs(inos)-gkt) /qmass(inos+1)
-          enddo
-          vlogs(nnos)=vlogs(nnos)+glogs(nnos)*wdti4(iyosh)
-
+!   do iyosh= 1, nyosh
+    do inos= nnos-1, 1, -1 
+      aanhc= exp(-ncfac*dt8*vlogs(inos+1))
+      vlogs(inos) = vlogs(inos)*aanhc
+      vlogs(inos) = vlogs(inos) + glogs(inos) * ncfac*dt4
+      vlogs(inos) = vlogs(inos) * aanhc
+      !if (myid==0) print '(2I4, 3f12.8)' , inos, iresn, aanhc, vlogs(inos), dt8
     enddo 
+      
+      aanhc = exp(-ncfac*dt8*vlogs(1))
+      vlogs(0) = vlogs(0)*aanhc
+      vlogs(0) = vlogs(0) + glogs(0)*ncfac*dt4
+      vlogs(0) = vlogs(0)* aanhc
+
+      factor_eta = exp(-aanhc*dt2*vlogs(0))
+      v(1:NATOMS, 1:3) = v(1:NATOMS, 1:3) * factor_eta
+      if (myid==0) print *, factor_eta
+      eKE2 = eKE2*factor_eta* factor_eta
+      if (qmass(1) >0) then
+        glogs(0) = (eKE2 - gnkt)/ qmass(0)
+      else 
+          glogs(0) = 0.0
+      endif 
+
+    do inos= 0, nnos-1 
+      xlogs(inos) = xlogs(inos) + ncfac* dt2 * vlogs(inos)
+    enddo 
+
+    vlogs(0) = vlogs(0)* aanhc
+    vlogs(0) = vlogs(0) + ncfac*dt4
+    vlogs(0) = vlogs(0)* aanhc
+
+    do inos =1 , nnos-1 
+      aanhc = exp(-ncfac*dt8*vlogs(inos+1))
+      vlogs(0) = vlogs(0)*aanhc
+      glogs(inos)= (qmass(inos-1) * vlogs(inos-1)*vlogs(inos-1) - treq)/ qmass(i)
+      vlogs(inos) = vlogs(inos) + glogs(inos) * ncfac*dt4
+      vlogs(inos) = vlogs(inos) * aanhc
+    enddo 
+
   enddo 
-      v(1:natoms, 1:3) = v(1:natoms, 1:3)* scale
+
 
 end subroutine nhc

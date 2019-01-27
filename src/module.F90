@@ -215,7 +215,7 @@ real(8),parameter :: Ekcal_j = 6.95016611d-21  ! [J]
 !--- Boltzmann Constant
 real(8),parameter :: BLTZMN = 1.3806503d-23  ! [m^2 kg s^-2 K^-1 ] 
 
-real(8),parameter :: UTEMP0 = 503.398008d0    ! Ekcal_j/BLZMN [K]
+real(8),parameter :: UTEMP0 = 503.271263211! 503.398008d0    ! Ekcal_j/BLZMN [K]
 real(8),parameter :: UTEMP = UTEMP0*2.d0/3.d0 ! [K]
 real(8),parameter :: USTRS = 6.94728103d0     ! [GPa]
 real(8),parameter :: UDENS = 1.66053886d0     ! [g/cc]

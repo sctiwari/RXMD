@@ -37,6 +37,7 @@ do nstep=0, ntime_step-1
    if(mod(nstep,fstep)==0) &
         call OUTPUT(atype, pos, v, q, GetFileNameBase(current_step+nstep))
 
+   if (mdmode==53) call nhc(atype, v)   
    if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:NATOMS,1:3)=vsfact*v(1:NATOMS,1:3)
 
@@ -46,7 +47,6 @@ do nstep=0, ntime_step-1
    endif
 
    if (mdmode==52) call berendsen(atype, v)   
-   if (mdmode==53) call nhc(atype, v)   
 
    if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
       call INITVELOCITY(atype, v)
@@ -57,6 +57,7 @@ do nstep=0, ntime_step-1
 
 !--- update velocity
    call vkick(1.d0, atype, v, f) 
+   if (mdmode==53) call nhc(atype, v)   
 
 !--- update coordinates
    qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))

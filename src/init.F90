@@ -4,6 +4,7 @@ SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
 use parameters; use atoms; use MemoryAllocator
+use nvt_setup
 implicit none
 
 real(8),allocatable,dimension(:) :: atype, q
@@ -60,7 +61,7 @@ if(saveRunProfile) open(RunProfileFD, file=RunProfilePath, status='unknown')
 !--- read MD control parameters
 open(1, file=trim(ParmPath), status="old")
 read(1,*) mdmode
-read(1,*) dt, ntime_step
+read(1,*) dt, ntime_step, tomega
 read(1,*) treq, vsfact, sstep
 read(1,*) fstep, pstep
 read(1,*) vprocs(1:3)

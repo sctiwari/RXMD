@@ -1,6 +1,14 @@
+module nvt_setup
+
+real(8) :: tomega
+
+end module 
+
+
 !-----------------------------------------------------------------------
 subroutine berendsen(atype, v)
 use atoms; use parameters
+use nvt_setup
 !-----------------------------------------------------------------------
 implicit none
 real(8) :: atype(NBUFFER), v(NBUFFER,3)
@@ -17,7 +25,7 @@ enddo
 Ekinetic= eGKE(atype, v)
 
 ctmp0 = (treq*UTEMP0)/( GKE*UTEMP )
-ctmp = sqrt (1 + (dt*UTIME)/10.0 * (ctmp0 -1))
+ctmp = sqrt (1 + (dt*UTIME)/tomega * (ctmp0 -1))
 
 do i = 1, NATOMS
   v(i, 1:3) = v(i, 1:3)* ctmp
@@ -54,7 +62,8 @@ end function
 
 !----------------------------------------------------------------------c
       subroutine myrnd(rnd,dseed)
-      real*8 rnd,dseed
+      real:: rnd
+      integer::dseed
 !----------------------------------------------------------------------c
 !  Random-number generator.
 !----------------------------------------------------------------------c
