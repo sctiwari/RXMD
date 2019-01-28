@@ -28,6 +28,7 @@ nresn= 1; nyosh= 3; nnos= 3
 
   qomega = 1/tomega
   gnkt = 3.0*GNATOMS * treq
+  if (myid==0) print *, treq*UTEMP0
   gkt = treq
   qmass(0) = gnkt / qomega**2
   do i = 1, nnos-1 
@@ -90,6 +91,7 @@ end subroutine nhc_init
 !-----------------------------------------------------------------------
 subroutine nhc(atype, v)
 use nhc_setup; use atoms; use parameters
+use nvt_setup
 !-----------------------------------------------------------------------
 implicit none 
 integer:: i, j, ii
@@ -103,11 +105,18 @@ dt2= 0.5*dt*UTIME
 dt4= 0.5*dt2
 dt8= 0.5*dt4
 
-  nnos1= nnos+1 
-  scale = 1d0
+
+  qomega = 1/tomega
+  gnkt = 3.0*GNATOMS * treq
+  gkt = treq
+  qmass(0) = gnkt / qomega**2
+  do i = 1, nnos-1
+    qmass(i) = qmass(0)/ (3.0*dble(GNATOMS))
+  enddo
+
 
 ! calculate kinetic energy
-if (qmass(1) >0) then 
+if (qmass(0) >0) then 
   Ekinetic= eGKE(atype, v)
   t_current= Ekinetic*UTEMP/GNATOMS
   eKE2= 2.d0* Ekinetic
@@ -116,7 +125,9 @@ if (qmass(1) >0) then
     glogs(0) = 0.0 
 endif 
 
-!if (myid==0) print '(f12.7)', glogs(1), qmass(2)
+
+
+if (myid==0) print '(4f18.6)', glogs(0), qmass(0), eKE2, t_current
 
 
 ncfac= 1.0/nresn
@@ -129,7 +140,7 @@ ncfac= 1.0/nresn
       vlogs(inos) = vlogs(inos)*aanhc
       vlogs(inos) = vlogs(inos) + glogs(inos) * ncfac*dt4
       vlogs(inos) = vlogs(inos) * aanhc
-      !if (myid==0) print '(2I4, 3f12.8)' , inos, iresn, aanhc, vlogs(inos), dt8
+      !if (myid==0) print '(2I4, 4f12.8)' , inos, iresn, aanhc, vlogs(inos), dt8, glogs(inos)
     enddo 
       
       aanhc = exp(-ncfac*dt8*vlogs(1))
@@ -137,12 +148,17 @@ ncfac= 1.0/nresn
       vlogs(0) = vlogs(0) + glogs(0)*ncfac*dt4
       vlogs(0) = vlogs(0)* aanhc
 
-      factor_eta = exp(-aanhc*dt2*vlogs(0))
-      v(1:NATOMS, 1:3) = v(1:NATOMS, 1:3) * factor_eta
-      if (myid==0) print *, factor_eta
+      factor_eta = exp(-ncfac*dt2*vlogs(0))
+
+     ! if (myid==0) print *, factor_eta
+      do i = 1, NATOMS
+        v(i, 1:3) = v(i, 1:3)* factor_eta
+      enddo 
       eKE2 = eKE2*factor_eta* factor_eta
-      if (qmass(1) >0) then
+      t_current= t_current* factor_eta* factor_eta
+      if (qmass(0) >0) then
         glogs(0) = (eKE2 - gnkt)/ qmass(0)
+        if (myid==0) print '(6f18.6)', glogs(0), eKE2, gnkt, qmass(0), t_current, factor_eta
       else 
           glogs(0) = 0.0
       endif 
@@ -152,18 +168,20 @@ ncfac= 1.0/nresn
     enddo 
 
     vlogs(0) = vlogs(0)* aanhc
-    vlogs(0) = vlogs(0) + ncfac*dt4
+    vlogs(0) = vlogs(0) + glogs(0)*ncfac*dt4
     vlogs(0) = vlogs(0)* aanhc
+
+  !if (myid==0) print '(4f12.6)', vlogs(0), aanhc, ncfac, glogs(0)
 
     do inos =1 , nnos-1 
       aanhc = exp(-ncfac*dt8*vlogs(inos+1))
-      vlogs(0) = vlogs(0)*aanhc
-      glogs(inos)= (qmass(inos-1) * vlogs(inos-1)*vlogs(inos-1) - treq)/ qmass(i)
+      vlogs(inos) = vlogs(inos)*aanhc
+      glogs(inos)= (qmass(inos-1) * vlogs(inos-1)*vlogs(inos-1) - treq)/ qmass(inos)
       vlogs(inos) = vlogs(inos) + glogs(inos) * ncfac*dt4
       vlogs(inos) = vlogs(inos) * aanhc
     enddo 
 
   enddo 
 
-
+return
 end subroutine nhc

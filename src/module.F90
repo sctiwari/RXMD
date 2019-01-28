@@ -78,7 +78,7 @@ integer :: mc(3)
 real(8),allocatable:: rc(:), rc2(:)   !<RCUT>: cutoff length for sigma-bonding.
 real(8),allocatable:: rcpi(:), rcpp(:)!      : cutoff length for other bonding.
 
-real(8),parameter :: MINBOSIG = 1d-3      !<minBOsig>: criterion to decide <rc> 
+real(8),parameter :: MINBOSIG = 1d-5      !<minBOsig>: criterion to decide <rc> 
 real(8),parameter :: MINBO0 = 1d-4       !<minBO0>: cutoff bond order 
 real(8),parameter :: cutof2_esub = 1d-4
 !real(8),parameter :: cutof2_bo = 1.d-2

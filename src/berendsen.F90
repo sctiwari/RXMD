@@ -17,11 +17,6 @@ integer :: i,ity
 real(8) :: Ekinetic, ctmp
 real(8) :: ctmp0, eGKE
 
-do i=1, NATOMS
-   ity=nint(atype(i))
-   Ekinetic=0.5d0*mass(ity)*sum(v(i,1:3)*v(i,1:3))
-enddo
-
 Ekinetic= eGKE(atype, v)
 
 ctmp0 = (treq*UTEMP0)/( GKE*UTEMP )
@@ -48,9 +43,11 @@ integer :: i,ity
 real(8) :: Ekinetic
 real(8) :: buf, Gbuf, eGKE
 
+Ekinetic=0.0
+
 do i=1, NATOMS
    ity=nint(atype(i))
-   Ekinetic=0.5d0*mass(ity)*sum(v(i,1:3)*v(i,1:3))
+   Ekinetic=Ekinetic+ 0.5d0*mass(ity)*sum(v(i,1:3)*v(i,1:3))
 enddo
 
 buf = Ekinetic

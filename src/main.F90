@@ -4,7 +4,7 @@ use base; use atoms; use parameters; use CG
 !------------------------------------------------------------------------------
 implicit none
 integer :: i,it1,it2,irt,provided
-real(8) :: ctmp, dr(3)
+real(8) :: ctmp, dr(3), factor
 
 !call MPI_INIT(ierr)
 call MPI_INIT_THREAD(MPI_THREAD_SERIALIZED,provided,ierr)
@@ -37,7 +37,6 @@ do nstep=0, ntime_step-1
    if(mod(nstep,fstep)==0) &
         call OUTPUT(atype, pos, v, q, GetFileNameBase(current_step+nstep))
 
-   if (mdmode==53) call nhc(atype, v)   
    if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:NATOMS,1:3)=vsfact*v(1:NATOMS,1:3)
 
@@ -47,6 +46,7 @@ do nstep=0, ntime_step-1
    endif
 
    if (mdmode==52) call berendsen(atype, v)   
+   if (mdmode==53) call nhc(atype, v)   
 
    if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
       call INITVELOCITY(atype, v)
@@ -57,7 +57,6 @@ do nstep=0, ntime_step-1
 
 !--- update velocity
    call vkick(1.d0, atype, v, f) 
-   if (mdmode==53) call nhc(atype, v)   
 
 !--- update coordinates
    qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))
@@ -73,6 +72,7 @@ do nstep=0, ntime_step-1
 
 !--- update velocity
    call vkick(1.d0, atype, v, f) 
+   if (mdmode==53) call nhc(atype, v)
    qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))
 
 enddo
