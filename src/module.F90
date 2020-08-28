@@ -24,7 +24,7 @@ include 'mpif.h'
 logical :: isFF=.false., isData=.false., isMDparm=.false.
 integer,parameter :: MAXPATHLENGTH=256
 character(MAXPATHLENGTH) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
-character(MAXPATHLENGTH) :: FFPath_lg="ffield_lg"
+
 logical :: saveRunProfile=.false.
 character(MAXPATHLENGTH) :: RunProfilePath="profile.dat"
 integer,parameter :: RunProfileFD=30 ! file descriptor for summary file
@@ -51,8 +51,10 @@ integer :: ns, nr, na, ne
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
 integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5, MODE_STRESSCALC = 6
+integer,parameter :: MODE_EAM= 7
 
 integer,parameter :: NE_COPY = 10, NE_MOVE = 12
+integer,parameter :: NE_EAM = 1
 integer,parameter :: NE_QCOPY1 = 2, NE_QCOPY2 = 3, NE_STRESSCALC = 6
 
 #ifdef STRESS
@@ -98,7 +100,7 @@ real(8) :: cutoff_vpar30
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
-integer :: NBUFFER=300000
+integer :: NBUFFER=20000
 integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 integer,parameter :: MAXNEIGHBS10=1000 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
@@ -163,8 +165,8 @@ real(8),allocatable :: deltalp(:)
 ! TE: Total Energy,  KE: Kinetic Energy,  PE :: Potential Energies
 !  0-Esystem, 1-Ebond, 2-Elp, 3-Eover, 4-Eunder, 5-Eval, 6-Epen
 !  7-Ecoa,  8-Etors, 9-Econj, 10-Ehbond, 11-Evdwaals, 12-Ecoulomb 13-Echarge
-real(8) :: TE, KE, PE(0:13)
-real(8) :: GTE, GKE, GPE(0:13)
+real(8) :: TE, KE, PE(0:14)
+real(8) :: GTE, GKE, GPE(0:14)
 
 !--- output file format 
 logical :: isBinary, isBondFile, isPDB
@@ -215,7 +217,7 @@ real(8),parameter :: Ekcal_j = 6.95016611d-21  ! [J]
 !--- Boltzmann Constant
 real(8),parameter :: BLTZMN = 1.3806503d-23  ! [m^2 kg s^-2 K^-1 ] 
 
-real(8),parameter :: UTEMP0 = 503.271263211! 503.398008d0    ! Ekcal_j/BLZMN [K]
+real(8),parameter :: UTEMP0 = 503.398008d0    ! Ekcal_j/BLZMN [K]
 real(8),parameter :: UTEMP = UTEMP0*2.d0/3.d0 ! [K]
 real(8),parameter :: USTRS = 6.94728103d0     ! [GPa]
 real(8),parameter :: UDENS = 1.66053886d0     ! [g/cc]
@@ -242,7 +244,7 @@ integer :: mdmode
 ! <current_step> will be used for subsequent runs.
 integer :: nstep=0, ntime_step, current_step
 !<vsfact> velocity scaling factor, <dt> one time step
-real(8) :: treq, vsfact, dt, dmt
+real(8) :: treq, vsfact, dt, dmt, dt0
 integer :: sstep
 
 !--- output format flags, explained in 'rxmdopt.in'
@@ -264,7 +266,7 @@ REAL(8) :: ftol   ! tolerance of energy convergence
 integer(8),allocatable :: natoms_per_type(:)
 
 !--- dthm=dt/(2*mass), hmas=mass/2
-real(8),allocatable :: dthm(:), hmas(:)
+real(8),allocatable :: dthm(:), hmas(:), dthm0(:)
 
 !--- potential teble
 integer,parameter :: NTABLE=5000
@@ -320,7 +322,7 @@ module parameters
 
 integer :: nso    !Number of different types of atoms
 integer :: nboty  !Number of different bonds given
-logical :: isLG
+
 ! Atom Dependant (ie where they appear in input file - not implementation in code)
 character(2),allocatable :: atmname(:)      !holds the Chemical Abbrev for each atomtype
 real(8),allocatable :: Val(:),Valboc(:)  !Valency of atomtype (norm, boc) 
@@ -363,15 +365,7 @@ real(8),allocatable :: phb1(:), phb2(:), phb3(:), r0hb(:)   !Hydrogren Bond Ener
 real(8),allocatable :: Dij(:,:), alpij(:,:), rvdW(:,:), gamW(:,:)  !Van der Waals Energy (eq. 21ab)
 real(8) :: pvdW1, pvdW1h, pvdW1inv
 
-real(8), allocatable :: C_lg(:,:), Re_lg(:)
-!---------lg and new vdw part----
-integer:: vdw_type
-real(8), allocatable:: rcore2(:),ecore2(:),acore2(:)
-logical :: isflag
-real(8), allocatable::rcore(:,:),ecore(:,:),acore(:,:)
-
 !Taper function 
-
 real(8),parameter :: rctap0 = 10.d0 ![A]
 real(8) :: rctap, rctap2, CTap(0:7)
 
@@ -416,6 +410,13 @@ real(8)  :: vpar30,vpar1,vpar2
 
 !--- <switch> flag to omit pi and double pi bond in bond-order prime calculation.
 real(8),allocatable :: switch(:,:) 
+
+!--- LG params 
+logical :: isLG=.true.
+real(8), allocatable :: C_lg(:,:), Re_lg(:)
+real(8), allocatable :: rcore2(:),ecore2(:),acore2(:)
+real(8), allocatable :: rcore(:,:),ecore(:,:),acore(:,:)
+
 
 end module parameters 
 

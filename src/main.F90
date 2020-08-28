@@ -4,7 +4,7 @@ use base; use atoms; use parameters; use CG
 !------------------------------------------------------------------------------
 implicit none
 integer :: i,it1,it2,irt,provided
-real(8) :: ctmp, dr(3), factor
+real(8) :: ctmp, dr(3)
 
 !call MPI_INIT(ierr)
 call MPI_INIT_THREAD(MPI_THREAD_SERIALIZED,provided,ierr)
@@ -14,13 +14,12 @@ call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
 if(myid==0)  print'(a30)', 'rxmd has started'
 
 !--- read ffield file
-CALL GETPARAMS(FFPath,FFPath_lg,FFDescript)
+CALL GETPARAMS(FFPath,FFDescript)
 
 !--- initialize the MD system
 CALL INITSYSTEM(atype, pos, v, f, q)
 
 if(mdmode==10) call ConjugateGradient(atype,pos)
-if(mdmode==53) call nhc_init()
 
 call QEq(atype, pos, q)
 call FORCE(atype, pos, f, q)
@@ -45,9 +44,6 @@ do nstep=0, ntime_step-1
       v(1:NATOMS,1:3)=sqrt(ctmp)*v(1:NATOMS,1:3)
    endif
 
-   if (mdmode==52) call berendsen(atype, v)   
-   if (mdmode==53) call nhc(atype, v)   
-
    if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
       call INITVELOCITY(atype, v)
 
@@ -69,11 +65,10 @@ do nstep=0, ntime_step-1
    
    if(mod(nstep,qstep)==0) call QEq(atype, pos, q)
    call FORCE(atype, pos, f, q)
-
+   call check_dt(f)
 !--- update velocity
    call vkick(1.d0, atype, v, f) 
-   if (mdmode==53) call nhc(atype, v)
-   qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))
+   !!qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))
 
 enddo
 
@@ -238,16 +233,18 @@ ss=sum(astr(1:3,1:NATOMS))
 #endif
 
 !--- potential energy 
-PE(0)=sum(PE(1:13))
+PE(0)=sum(PE(1:14))
 
 !--- copy data into buffer
 buf(0:13) = PE(0:13)
 buf(14) = KE; buf(15) = ss; buf(16) = qq
+buf(17) = PE(14) 
 call MPI_ALLREDUCE (buf, Gbuf, size(buf), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 
 !--- copy data from buffer
 GPE(0:13) = Gbuf(0:13)
 GKE = Gbuf(14); ss = Gbuf(15); qq = Gbuf(16)
+GPE(14) = Gbuf(17)
 
 !--- compute properties
 GPE(:)=GPE(:)/GNATOMS
@@ -263,9 +260,9 @@ if(myid==0) then
    
    cstep = nstep + current_step 
 
-   write(6,'(i9,3es13.5,6es11.3,1x,3f8.2,i4,f8.2,f8.2)') cstep,GTE,GPE(0),GKE, &
-   GPE(1),sum(GPE(2:4)),sum(GPE(5:7)),sum(GPE(8:9)),GPE(10),sum(GPE(11:13)), &
-   tt, ss, qq, nstep_qeq, GetTotalMemory()*1e-9, MPI_WTIME()-wt0 
+   write(6,'(i9,3es13.5,9es11.3,1x,3f8.2,i4,f8.2,f8.2,es11.3)') cstep,GTE,GPE(0),GKE, &
+   GPE(1),GPE(2), GPE(3), GPE(4),sum(GPE(5:7)),sum(GPE(8:9)),GPE(10),sum(GPE(11:13)), GPE(14),&
+   tt, ss, qq, nstep_qeq, GetTotalMemory()*1e-9, MPI_WTIME()-wt0, dt*UTIME 
 
 #ifdef STRESS
    write(6,'(6es13.5)') pint(1,1)*USTRS, pint(2,2)*USTRS, pint(3,3)*USTRS, &
@@ -690,3 +687,43 @@ enddo
 
 return
 end
+
+!--------------------------------------------------------------------------
+subroutine check_dt(f)
+use atoms; use parameters 
+
+implicit none
+real(8) :: f(NBUFFER,3) 
+real(8) :: sbuf(3*NBUFFER)
+real(8) :: rbuf, maxbuf
+real(8) :: dt_check
+integer ::  counter, i, j, ity
+
+counter= 0
+do i=1, 3
+  do j= 1, NBUFFER
+      counter = counter+1 
+      sbuf(counter)= f(j,i)
+  enddo 
+enddo 
+maxbuf= maxval(sbuf(:))
+
+!print *, "Initial value", myid, maxbuf
+
+call MPI_ALLREDUCE(maxbuf, rbuf, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierr)
+!print *, "final value", myid, rbuf
+
+dt= dt0
+
+dt_check= 0.1/rbuf ! check position 
+
+if (dt_check < dt) then 
+    dt= dt_check
+  do ity=1, nso
+   dthm(ity) = dt*0.5d0/mass(ity)
+  enddo
+endif
+
+!if (myid==0) print *, "timestep", dt0, dt, dt_check, dthm(:)
+ 
+end 

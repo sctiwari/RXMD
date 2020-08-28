@@ -25,7 +25,7 @@ real(8) :: buf(4), Gbuf(4)
 real(8) :: ssum, tsum, mu
 real(8) :: qsum, gqsum
 real(8) :: QCopyDr(3)
-
+integer :: ity
 call system_clock(i1,k1)
 
 QCopyDr(1:3)=rctap/(/lata,latb,latc/)
@@ -95,11 +95,20 @@ GEst2=1.d99
 do nstep_qeq=0, nmax-1
 
 
+do i=1, natoms 
+  ity= nint(atype(i))
+  if (ity/=7) cycle 
+    gs(i)= 0; gt(i)=0
+    hs(i) =0; ht(i)=0
+enddo 
+
 #ifdef QEQDUMP 
   qsum = sum(q(1:NATOMS))
   call MPI_ALLREDUCE(qsum, gqsum, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
 #endif
-
+  !if (myid==0) print *,"Printing something", qsum, nstep_qeq
+  !if(myid==0) print'(i5,5es25.15)', nstep_qeq, 0.5d0*log(Gnew(1:2)/GNATOMS), GEst1, GEst2, gqsum
+  
   call get_hsh(Est)
 
   call MPI_ALLREDUCE(Est, GEst1, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
@@ -107,7 +116,7 @@ do nstep_qeq=0, nmax-1
 #ifdef QEQDUMP 
   if(myid==0) print'(i5,5es25.15)', nstep_qeq, 0.5d0*log(Gnew(1:2)/GNATOMS), GEst1, GEst2, gqsum
 #endif
-
+  !if (GEst1==0.0) exit
   if( ( 0.5d0*( abs(GEst2) + abs(GEst1) ) < QEq_tol) ) exit 
   if( abs(GEst2) > 0.d0 .and. (abs(GEst1/GEst2-1.d0) < QEq_tol) ) exit
   GEst2 = GEst1
@@ -207,7 +216,7 @@ do c3=0, nbcc(3)-1
    do m = 1, nbnacell(c1,c2,c3)
 
    ity=nint(atype(i))
-
+   if (ity ==7) cycle
    do mn = 1, nbnmesh
       c4 = c1 + nbmesh(1,mn)
       c5 = c2 + nbmesh(2,mn)
@@ -221,9 +230,9 @@ do c3=0, nbcc(3)-1
             dr2 =  sum(dr(1:3)*dr(1:3))
 
             if(dr2 < rctap2) then
-
+                
                jty = nint(atype(j))
-
+              if (jty==7) cycle 
 !--- make a neighbor list with cutoff length = 10[A]
 !$omp atomic
                nbplist(i,0) = nbplist(i,0) + 1
@@ -280,9 +289,13 @@ Est = 0.d0
 do i=1, NATOMS
    ity = nint(atype(i))
    eta_ity = eta(ity)
-
+  if (ity /=7) then   
    hshs(i) = eta_ity*hs(i)
    hsht(i) = eta_ity*ht(i)
+  else 
+     hshs(i) =0 
+     hsht(i) =0 
+  endif 
 
    Est = Est + chi(ity)*q(i) + 0.5d0*eta_ity*q(i)*q(i)
 
@@ -332,10 +345,13 @@ do i=1,NATOMS
 
    ity = nint(atype(i))
    eta_ity = eta(ity)
-
+  if (ity/=7) then 
    gs(i) = - chi(ity) - eta_ity*qs(i) - gssum
    gt(i) = - 1.d0     - eta_ity*qt(i) - gtsum
-
+  else 
+   gs(i) = 0.0 
+   gt(i) =0.0
+  endif 
 enddo 
 !$omp end parallel do
 

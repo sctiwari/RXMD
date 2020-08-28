@@ -1,9 +1,9 @@
-53                   <mdmod>
-0.25    10000   100      <dt> <ntime_step> 
-300  0.5   1       <treq> <vsfact> <sstep>
-100   1           <fstep>  <pstep>
-2 2 1                <vprocs>
-1  500  1.d-9  1      <isQEq> <NMAXQEq> <QEq_tol> <qstep> 
+1                    <mdmod>
+0.1    1000000             <dt> <ntime_step> 
+10  0.5   1       <treq> <vsfact> <sstep>
+500   1           <fstep>  <pstep>
+8 8 16                <vprocs>
+1  5000  1.d-7  1      <isQEq> <NMAXQEq> <QEq_tol> <qstep> 
 1.0  2.0              <Lex_fqs> <Lex_k>
-.true. .false. .false. <isBinary> <isBondFile> <isPDB>
+.true. .false. .true. <isBinary> <isBondFile> <isPDB>
 1.d-6                <ftol> 

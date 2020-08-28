@@ -4,7 +4,6 @@ SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
 use parameters; use atoms; use MemoryAllocator
-use nvt_setup
 implicit none
 
 real(8),allocatable,dimension(:) :: atype, q
@@ -61,7 +60,7 @@ if(saveRunProfile) open(RunProfileFD, file=RunProfilePath, status='unknown')
 !--- read MD control parameters
 open(1, file=trim(ParmPath), status="old")
 read(1,*) mdmode
-read(1,*) dt, ntime_step, tomega
+read(1,*) dt, ntime_step
 read(1,*) treq, vsfact, sstep
 read(1,*) fstep, pstep
 read(1,*) vprocs(1:3)
@@ -91,7 +90,7 @@ endif
 
 !--- time unit conversion from [fs] -> time unit
 dt = dt/UTIME
-
+dt0= dt
 !--- square the spring const in the extended Lagrangian method 
 Lex_w2=2.d0*Lex_k/dt/dt
 
@@ -128,10 +127,12 @@ enddo
 
 !--- dt/2*mass, mass/2
 call allocatord1d(dthm, 1, nso)
+call allocatord1d(dthm0, 1, nso)
 call allocatord1d(hmas, 1, nso)
 do ity=1, nso
    dthm(ity) = dt*0.5d0/mass(ity)
    hmas(ity) = 0.5d0*mass(ity)
+   dthm0(ity) = dthm(ity) 
 enddo
 
 call allocatord1d(atype,1,NBUFFER)
@@ -163,6 +164,11 @@ do i=1, NATOMS
    ity=nint(atype(i))
    natoms_per_type(ity)=natoms_per_type(ity)+1
 enddo
+
+do i=1, natoms 
+    ity=nint(atype(i))
+    if (ity==7) v(i, 1) = -2.0 
+enddo 
 
 call MPI_ALLREDUCE(natoms_per_type, ibuf8, nso, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 natoms_per_type(1:nso)=ibuf8(1:nso)
@@ -226,6 +232,9 @@ call allocatori1d(frcindx,1,NBUFFER)
 
 !--- setup potential table
 call POTENTIALTABLE()
+call eam_init()
+call buck_init()
+call buck_potential_table()
 
 !--- get real size of linked list cell
 rcsize(1) = lata/vprocs(1)/cc(1)
@@ -253,7 +262,7 @@ maxas(:,:)=0
 !--- print out parameters and open data file
 if(myid==0) then
    write(6,'(a)') "----------------------------------------------------------------"
-   if (isLG) write (6,'(a)') "ReaxFF-LG: Implementation from Liu et al. "
+   if (isLG) write (6,'(a)') "ReaxFF-LG: Implementation from Liu et al. " 
    if (isLG) write (6,'(a)') " ReaxFF-LG is implemented Only for C H O N" 
    write(6,'(a30,i9,a3,i9)') "req/alloc # of procs:", vprocs(1)*vprocs(2)*vprocs(3), "  /",nprocs
    write(6,'(a30,3i9)')      "req proc arrengement:", vprocs(1),vprocs(2),vprocs(3)
@@ -282,13 +291,9 @@ if(myid==0) then
    lata/nbcc(1)/vprocs(1),latb/nbcc(2)/vprocs(2),latc/nbcc(3)/vprocs(3)
    write(6,'(a30,2i6)') "MAXNEIGHBS, MAXNEIGHBS10:", MAXNEIGHBS,MAXNEIGHBS10
    write(6,'(a30,i6,i9)') "NMINCELL, NBUFFER:", NMINCELL, NBUFFER
-   if (isLG) then 
-        write(6,'(a30,3(a12,1x))') "FFPath, DataDir, ParmPath:", &
-                          trim(FFPath_lg), trim(DataDir), trim(ParmPath)
-      else
-        write(6,'(a30,3(a12,1x))') "FFPath, DataDir, ParmPath:", &
+   write(6,'(a30,3(a12,1x))') "FFPath, DataDir, ParmPath:", &
                           trim(FFPath), trim(DataDir), trim(ParmPath)
-   endif
+
    print'(a30 $)','# of atoms per type:'
    do ity=1, nso
       if(natoms_per_type(ity)>0) print'(i12,a2,i2 $)',natoms_per_type(ity),' -',ity
@@ -402,6 +407,9 @@ do jty=ity, nso
    do while (BOsig > MINBOSIG) 
       dr = dr + 0.01d0
       BOsig = exp( pbo1(inxn)*(dr/r0s(ity,jty))**pbo2(inxn) ) !<- sigma bond prime
+      if (dr >4.0) then
+         exit
+      endif
    enddo
 
    rc(inxn)  = dr
@@ -428,6 +436,7 @@ enddo
 !--- get the max cutoff length 
 maxrc=maxval(rc(:))
 
+if (maxrc==0) maxrc=3.0
 end subroutine
 
 !------------------------------------------------------------------------------------------
@@ -438,27 +447,16 @@ implicit none
 integer :: i, ity,jty,inxn
 real(8) :: dr1, dr2, dr3, dr4, dr5, dr6, dr7
 
+real(8) :: dr_lg, dr6_lg, Elg, E_core, dE_core, dElg
 real(8) :: exp1, exp2
 real(8) :: gamwinvp, gamWij, alphaij, Dij0, rvdW0
 real(8) :: Tap, dTap, fn13, dfn13, dr3gamij, rij_vd1
-real(8) :: dr_lg, dr6_lg
-real(8) :: rres, Elg, dElg, E_core, dE_core
 
 !--- first element in table 0: potential
 !---                        1: derivative of potential
 call allocatord3d(TBL_EClmb,0,1,1,NTABLE,1,nboty)
 call allocatord3d(TBL_Evdw,0,1,1,NTABLE,1,nboty)
 call allocatord2d(TBL_EClmb_QEq,1,NTABLE,1,nboty)
-
-!-------check RXFF-LG values-----!
-!if(myid==0) then 
-!do i=1, nso 
-!    print '(8f12.5, 2X, f12.5)', C_lg(i, :), Re_lg(i)
-!enddo 
-!endif
-!------------end RXFF-lg check -----!
-
-
 
 !--- unit distance in r^2 scale
 UDR = rctap2/NTABLE
@@ -513,25 +511,30 @@ do jty=ity, nso
 
          dfn13 = ((rij_vd1 + gamwinvp)**(pvdW1inv-1.d0)) * (dr2**(pvdW1h-1.d0)) 
 
-!      CEvdw = Dij0*( dTap*(exp1 - 2.d0*exp2)  &
-!           - Tap*(alphaij/rvdW0)*(exp1 - exp2)*dfn13 )
-!      CEclmb = Cclmb*q(i)*q(j)*dr3gamij*( dTap - (dr3gamij**3)*Tap*dr(0) ) 
-
          TBL_Evdw(1,i,inxn) = Dij0*( dTap*(exp1 - 2.d0*exp2)  &
                             - Tap*(alphaij/rvdW0)*(exp1 - exp2)*dfn13 )
-         TBL_Eclmb(1,i,inxn) = Cclmb*dr3gamij*( dTap - (dr3gamij**3)*Tap*dr1 )
-if (isLG) then 
-         if (ity > 4 .or. jty >4) cycle   
-         dr_lg = 2*sqrt(Re_lg(ity)*Re_lg(jty))
-         dr6_lg = dr_lg**6
-         Elg = -C_lg(ity,jty)/(dr6 + dr6_lg)
-         E_core=ecore(ity,jty)*exp(acore(ity,jty)*(1.d0-(dr1/rcore(ity,jty))))
-         dE_core=-acore(ity,jty)*E_core/rcore(ity,jty)/dr1
-         dElg=C_lg(ity,jty)*(6.d0*dr5)/(dr6 + dr6_lg)**2/dr1
-         TBL_Evdw(0,i,inxn) = TBL_Evdw(0,i,inxn) + Tap*(Elg+E_core)
-         TBL_Evdw(1,i,inxn) = TBL_Evdw(1,i,inxn) + dTap*Elg+Tap*dElg&
-                                +dTap*E_core+Tap*dE_core
-endif
+         TBL_Eclmb(1,i,inxn) = Cclmb*dr3gamij*( dTap - (dr3gamij**3)*Tap*dr1 ) 
+
+         if(isLG) then
+
+!FIXME LG extension supports only C,H,O,N at this moment. We should use element
+!name instead of fixed numbers.  
+            if (ity > 4 .or. jty > 4) cycle
+
+            dr_lg = 2*sqrt(Re_lg(ity)*Re_lg(jty))
+            dr6_lg = dr_lg**6
+
+
+            Elg = -C_lg(ity,jty)/(dr6 + dr6_lg)
+            E_core = ecore(ity,jty)*exp(acore(ity,jty)*(1.d0-(dr1/rcore(ity,jty))))
+
+            dElg = C_lg(ity,jty)*(6.d0*dr5)/(dr6 + dr6_lg)**2/dr1
+            dE_core = -acore(ity,jty)*E_core/rcore(ity,jty)/dr1
+
+            TBL_Evdw(0,i,inxn) = TBL_Evdw(0,i,inxn) + Tap*(Elg+E_core)
+            TBL_Evdw(1,i,inxn) = TBL_Evdw(1,i,inxn) + dTap*Elg+Tap*dElg +dTap*E_core+Tap*dE_core
+
+         endif
 
       enddo
    endif

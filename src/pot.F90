@@ -56,6 +56,13 @@ CALL E4b()
 !$omp end parallel 
 
 CALL ForceBondedTerms(NMINCELL)
+
+call eam_force(atype, pos, f, PE(14))
+!print *, 'eam energy', PE(14)
+call buck_force(atype, pos, f, PE(14))
+!print *, 'buck energy', PE(14) 
+
+
 CALL COPYATOMS(MODE_CPBK,[0.d0, 0.d0, 0.d0], atype, pos, vdummy, f, q) 
 
 #ifdef RFDUMP
